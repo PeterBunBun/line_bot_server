@@ -1,0 +1,12 @@
+version: "3.1"
+
+services:
+  line_bot_server:
+    build: .
+    env_file:
+      - ./deploy/.env
+    ports:
+      - 80:80
+      - 443:443
+    container_name: linb_bot_server_container
+    restart: always
