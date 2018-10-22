@@ -2,16 +2,17 @@ from flask_restplus import Namespace, Resource
 from flask import request, abort, jsonify
 from linebot import LineBotApi, WebhookParser, WebhookHandler
 from linebot.exceptions import InvalidSignatureError
-from linebot.models import TextSendMessage, JoinEvent, FollowEvent, LeaveEvent, UnfollowEvent
+from linebot.models import JoinEvent, FollowEvent, LeaveEvent, UnfollowEvent
 from source.global_config import GlobalConfigs
-from source.helper.line_utils import enable_group, reply_message, enable_user, disable_group, disable_user
+from source.helper.line.line_utils import enable_group, reply_message, enable_user, disable_group, disable_user, \
+    WebhookParserPeter, push_message_to_many, get_all_enabled_users, get_all_enabled_groups
 from source.helper.logger import getProgramLogger
 
-import json
 
 line_apis = Namespace('line', description='Call back endpoint for line server')
 line_bot_api = LineBotApi(GlobalConfigs.LINE_CHANNEL_ACCESS_TOKEN)
 parser = WebhookParser(GlobalConfigs.LINE_CHANNEL_SECRET)
+parser_peter = WebhookParserPeter()
 handler = WebhookHandler(GlobalConfigs.LINE_CHANNEL_SECRET)
 
 logger = getProgramLogger(__name__)
@@ -34,6 +35,9 @@ class Callback(Resource):
         except InvalidSignatureError as e:
             logger.error(e)
             abort(400, '{}'.format(e))
+
+        # Testing using Peter's own parser
+        # events = parser_peter.parse(body)
 
         errors = list()
 
@@ -71,7 +75,7 @@ class Callback(Resource):
 
             else:
                 error_msg = 'Unknown event type detected, type: {}, event content: {}'.format(type(event), event)
-                logger.erorr(error_msg)
+                logger.error(error_msg)
                 errors.append(error_msg)
 
         return 'OK' if not errors else jsonify(errors)
@@ -82,11 +86,10 @@ class PushText(Resource):
     def post(self):
         body = request.get_data(as_text=True)
         logger.info("Request body: " + body)
-
         source_ip = request.remote_addr
         pushing_msg = 'Calling from: {}\nPushing body: {}'.format(source_ip, body)
-        logger.info("Pushing: {}".format(pushing_msg))
-        user_id_peter_lee = 'C1f77fa55580cec85ec3bb97d018d9a39'
-        line_bot_api.push_message(user_id_peter_lee, TextSendMessage(text=pushing_msg))
+        user_ids = [doc['user_id'] for doc in get_all_enabled_users()]
+        group_ids = [doc['group_id'] for doc in get_all_enabled_groups()]
+        push_message_to_many(user_ids + group_ids, pushing_msg)
 
         return 'OK'
